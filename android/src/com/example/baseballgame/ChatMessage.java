@@ -15,6 +15,7 @@ public class ChatMessage implements Parcelable{
 		// TODO Auto-generated method stub
 		return super.clone();
 	}
+	
 	public static class MessageComparator implements Comparator<ChatMessage>{
 		public int compare(ChatMessage o1, ChatMessage o2) {
 			if(o1.time == o2.time)
@@ -25,6 +26,7 @@ public class ChatMessage implements Parcelable{
 				return -1;
 	    }
 	}
+	
 	public boolean isMe() {
 		return (name.equals(me));
 	}

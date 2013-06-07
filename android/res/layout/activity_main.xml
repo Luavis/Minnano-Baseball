@@ -12,12 +12,12 @@
         android:id="@+id/balloon_layout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
-         <ImageView
+         <ImageView 
 	        android:id="@+id/answer"
 	        android:layout_height="80dp"
 	        android:layout_width="fill_parent"
 	        android:scaleType="fitXY"
-	        android:src="@drawable/balloon">
+	        android:src="@drawable/balloon"> <!-- backgound image -->
 	    </ImageView>
         <LinearLayout
             android:layout_width="wrap_content"

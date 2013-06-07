@@ -14,6 +14,7 @@ import org.json.JSONObject;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -22,8 +23,6 @@ import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.WindowManager;
-import android.widget.AbsListView;
-import android.widget.AbsListView.OnScrollListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -54,6 +53,7 @@ public class MainActivity extends Activity {
 	static String url = "http://baseball.luavis.kr";
 	//ArrayAdapter<ChatMessage> adapter;
 	ChatListAdapter adapter;
+	MediaPlayer player;	
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -82,8 +82,12 @@ public class MainActivity extends Activity {
 	            chatList.setSelection(adapter.getCount() - 1);
 	        }
 	    };
-	    
-		
+
+	    player = MediaPlayer.create(this, R.raw.bgsound);
+        player.setLooping(true); // Set looping
+        player.setVolume(100,100);
+        player.start();
+
 		TextWatcher watcher = new TextWatcher() {
 		    @Override
 		    public void afterTextChanged(Editable s) {}
@@ -174,6 +178,7 @@ public class MainActivity extends Activity {
 		         }
 		    }
 		};
+		
 		firstInput.addTextChangedListener(watcher);
 		secondInput.addTextChangedListener(watcher);
 		thirdInput.addTextChangedListener(watcher);
@@ -287,6 +292,7 @@ public class MainActivity extends Activity {
 	protected void onPause() {
 		// TODO Auto-generated method stub
 		super.onPause();
+		player.pause();
 		backgroundThreadPause();
 	}
 	
@@ -307,6 +313,7 @@ public class MainActivity extends Activity {
 	protected void onResume() {
 		// TODO Auto-generated method stub
 		super.onResume();
+		player.start();
 		backgroundThreadResume();
 	}
 	
@@ -314,13 +321,16 @@ public class MainActivity extends Activity {
 	protected void onRestart() {
 		// TODO Auto-generated method stub
 		super.onRestart();
+		player.start();
 		backgroundThreadResume();
 	}
 	
 	@Override
 	protected void onDestroy() {
 		// TODO Auto-generated method stub
-		
+		player.stop();
+        player.release();
+
 		Thread th1 = new Thread(new Runnable() {
 			
 			@Override
