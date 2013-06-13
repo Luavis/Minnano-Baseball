@@ -99,7 +99,7 @@ public class SplashActivity extends Activity {
 						});
 					}
 					else { // kill thread
-						SplashActivity.this.runOnUiThread(new Runnable() {
+						SplashActivity.this.runOnUiThread(new Runnable() { // start main thread to show toast message
 							@Override
 							public void run() {
 								Toast.makeText(SplashActivity.this, "서버에러입니다. 잠시후 다시 시도해 주세요.", Toast.LENGTH_LONG).show();
@@ -109,9 +109,9 @@ public class SplashActivity extends Activity {
 						});
 					}
 				} catch (Exception e) {
-					SplashActivity.this.runOnUiThread(new Runnable() {
+					SplashActivity.this.runOnUiThread(new Runnable() { // start main thread to show toast message
 						@Override
-						public void run() {
+						public void run() { 
 							Toast.makeText(SplashActivity.this, "서버에러입니다. 잠시후 다시 시도해 주세요.", Toast.LENGTH_LONG).show(); // is connection error occur, show toast
 							setResult(-1); // if result is -1, MainActivity finish his activity
 							finish(); // finish actvity!
@@ -119,7 +119,7 @@ public class SplashActivity extends Activity {
 					});
 				}
 				
-				SplashActivity.this.runOnUiThread(new Runnable() {
+				SplashActivity.this.runOnUiThread(new Runnable() { // start main thread to finish activity
 					@Override
 					public void run() {
 						// TODO Auto-generated method stub

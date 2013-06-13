@@ -55,6 +55,163 @@ public class MainActivity extends Activity {
 	ChatListAdapter adapter;
 	MediaPlayer player;	
 	
+	Thread answerSendThread = new Thread(new Runnable() { // make thread for send to server
+		@Override
+		public void run() { // run!
+			// TODO Auto-generated method stub
+			String message = null; // message!
+
+			backgroundThreadPause(); // background thread pause for safety
+			try {
+				// make message with user type answer and encode percentage encoding
+				message = URLEncoder.encode(firstInput.getText().toString() + secondInput.getText().toString() + thirdInput.getText().toString(), "utf-8"); 
+			} catch (UnsupportedEncodingException e1) { // when string that user type is not UTF-8 string
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				backgroundThreadResume(); //resume 
+			} 
+
+			// make url : time is recent time and message is user type answer
+			HttpGet newSession = new HttpGet(MainActivity.url + "/answer?time=" + time + "&message=" + message);
+
+			try {
+				HttpResponse response = MainActivity.httpclient.execute(newSession); // send connection
+				InputStream contentStream = response.getEntity().getContent(); // content stream
+				StringBuffer out = new StringBuffer(); // string builder to create result with buffer
+				byte[] buffer = new byte[4094]; // create buffer
+				int readSize = 0; // read size
+				while ( (readSize = contentStream.read(buffer)) != -1) { // exit when reading complete
+				    out.append(new String(buffer, 0, readSize)); // stringBuilder append buffer
+				}
+				contentStream.close(); // stream close
+				
+				String result = out.toString(); // String builder create String 
+				JSONObject ob = new JSONObject(result); // JSON Parsing
+				if(!ob.getString("message").equals("success")) { // when response is not success
+					throw null; // throw! exception
+				}
+				else { // else
+					MainActivity.this.runOnUiThread(new Runnable() { // start main thread to clear input text
+						public void run() {
+							isFirstInput = isSecondInput = isThirdInput = false; // set all clear!
+							
+							firstInput.setText("");   // all clear
+							secondInput.setText(""); // all clear
+							thirdInput.setText(""); // all clear
+						}
+					});
+					if(ob.getBoolean("correct")==  true) { // if user answer correct?
+						Toast.makeText(MainActivity.this, "축하합니다! 정답을 맞추셨습니다!", Toast.LENGTH_LONG).show();
+					}
+					
+				}
+			}
+			catch(Exception e) { // if exception is occur
+				MainActivity.this.runOnUiThread(new Runnable() { // start main thread to show toast message
+					public void run() {
+						Toast.makeText(MainActivity.this, "서버와 연결이 끊켰습니다.\n 정답을 업로드 할 수 없습니다.", Toast.LENGTH_LONG).show(); // show toast
+						//finish();
+					}
+				});
+			}
+			backgroundThreadResume(); // background thread resume!
+		}
+	});
+	
+	Thread messageSendThread = new Thread(new Runnable() {
+		
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			MainActivity.this.runOnUiThread(new Runnable() { // sending disable
+				public void run() {
+					msgSend.setEnabled(false);
+					msgSend.setFocusable(false);
+				}
+			});
+
+			String msg = msgText.getText().toString(); // get message
+			if(msg.length() >= 256) { // if message string is too long
+				MainActivity.this.runOnUiThread(new Runnable() { //start main thread to show toast
+					public void run() {
+						Toast toast = Toast.makeText(MainActivity.this, "너무 길어요!", Toast.LENGTH_SHORT); 
+						toast.show();
+					}
+				});
+			}
+			else if(msg.length() > 0) {
+				backgroundThreadPause(); // background thread pause for safety
+				HttpGet newSession = null;
+				try { // make url
+					newSession = new HttpGet(MainActivity.url + "/write?time=" + URLEncoder.encode(time + "", "utf-8")+ "&message=" + URLEncoder.encode(msg, "utf-8"));
+				} catch (UnsupportedEncodingException e1) { // text is not utf-8 character
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+					backgroundThreadResume();
+				}
+				
+				try {	
+					HttpResponse response = MainActivity.httpclient.execute(newSession); // send connection
+					InputStream contentStream = response.getEntity().getContent(); // content stream
+					StringBuffer out = new StringBuffer(); // string builder to create result with buffer
+					byte[] buffer = new byte[4094]; // create buffer
+					int readSize = 0; // read size
+					while ( (readSize = contentStream.read(buffer)) != -1) { // exit when reading complete
+					    out.append(new String(buffer, 0, readSize)); // stringBuilder append buffer
+					}
+					contentStream.close(); // stream close
+					
+					String result = out.toString(); // String builder create String 
+					JSONObject ob = new JSONObject(result); // JSON Parsing
+					String message = ob.getString("message"); // JSON Object get message
+					if(!ob.getString("message").equals("success")) { // when response is not success
+						throw null; // throw! exception
+					}
+					else {// if success
+						MainActivity.this.runOnUiThread(new Runnable() { //start main thread to clear message box
+							public void run() { // clear text
+								msgText.setText(""); // clear
+							}
+						});
+					}
+				}
+				catch(Exception e) { // if exception is occur
+					MainActivity.this.runOnUiThread(new Runnable() { // start main thread to show toast message
+						public void run() {
+							MainActivity.this.runOnUiThread(new Runnable() {
+								
+								@Override
+								public void run() {
+									// TODO Auto-generated method stub
+									Toast.makeText(MainActivity.this, "메세지 전송에 실패했습니다.", Toast.LENGTH_SHORT).show(); // show error meessage
+								}
+							});
+						}
+					});
+				}
+
+				backgroundThreadResume();
+			}
+			else {
+				MainActivity.this.runOnUiThread(new Runnable() { // start main thread to show toast message
+					
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						Toast.makeText(MainActivity.this, "텍스트를 입력해 주세요!", Toast.LENGTH_SHORT).show(); // show please input text
+					}
+				});
+			}
+			
+			MainActivity.this.runOnUiThread(new Runnable() { // set re-sendable
+				public void run() {
+					msgSend.setEnabled(true);
+					msgSend.setFocusable(true);
+				}
+			});
+		}
+	});
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -62,335 +219,175 @@ public class MainActivity extends Activity {
 		mPaused = false; // background Thread Watcher 
 		mFinished = false; // background Thread Killer
 		
-		startActivityForResult(new Intent(MainActivity.this, SplashActivity.class), 1);
-		setContentView(R.layout.activity_main);
-		getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
-		Log.d("Luavis", "Start");
+		startActivityForResult(new Intent(MainActivity.this, SplashActivity.class), 1); // Start Activity For Splash activity(loading screen)
+		setContentView(R.layout.activity_main); // inflate layout for activity
+
+		getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN); // When Keyboard is shown, up screen
+		Log.d("Luavis", "Start"); // Log
 		
-		firstInput = (EditText)findViewById(R.id.first_input);
-		secondInput = (EditText)findViewById(R.id.second_input);
+		firstInput = (EditText)findViewById(R.id.first_input); // find view by id
+		secondInput = (EditText)findViewById(R.id.second_input); // find view by id
 		thirdInput = (EditText)findViewById(R.id.third_input);
-		msgText = (EditText)findViewById(R.id.msg_text);
-		chatList = (ListView)findViewById(R.id.listview);
-		msgSend = (Button)findViewById(R.id.msg_send);
-		chatList.setDivider(null);
+		msgText = (EditText)findViewById(R.id.msg_text); // find view by id
+		chatList = (ListView)findViewById(R.id.listview); // find view by id
+		msgSend = (Button)findViewById(R.id.msg_send); // find view by id
 		
-		scrollBottomHandler = new Runnable() {
+		chatList.setDivider(null); // chat list divider line remove 
+		
+		scrollBottomHandler = new Runnable() { // scroll chatting list to always bottom
 	        @Override
-	        public void run() {
+	        public void run() { // run!
 	            // Select the last row so it will scroll into view...
-	            chatList.setSelection(adapter.getCount() - 1);
+	            chatList.setSelection(adapter.getCount() - 1); // make list show last component
 	        }
 	    };
 
-	    player = MediaPlayer.create(this, R.raw.bgsound);
+	    player = MediaPlayer.create(this, R.raw.bgsound); // backgroundsound play ready
         player.setLooping(true); // Set looping
-        player.setVolume(100,100);
-        player.start();
+        player.setVolume(100,100); // volume set highest
+        player.start(); // start!
 
-		TextWatcher watcher = new TextWatcher() {
+		TextWatcher watcher = new TextWatcher() { // watching baseball game edit text is full?
 		    @Override
-		    public void afterTextChanged(Editable s) {}
+		    public void afterTextChanged(Editable s) {} // blank
 		 
 		    @Override
-		    public void beforeTextChanged(CharSequence s, int start, int count, int after){}
+		    public void beforeTextChanged(CharSequence s, int start, int count, int after){} // blank
 		 
-		    @Override
-		    public void onTextChanged(CharSequence s, int start, int before, int count)
-		    {
-		         if (firstInput.isFocused()) {
-	        		 isFirstInput = (firstInput.getText().toString().length() != 0);
+		    @Override 
+		    public void onTextChanged(CharSequence s, int start, int before, int count) 
+		    {	//when editText's text is changed
+
+		         if (firstInput.isFocused()) { // if first editText is editted?
+	        		 isFirstInput = (firstInput.getText().toString().length() != 0); // is removed or is inputed text?
 		         }
-		         else if(secondInput.isFocused()) {
-		        	 isSecondInput = (secondInput.getText().toString().length() != 0);
+		         else if(secondInput.isFocused()) { // if second editText is editted?
+		        	 isSecondInput = (secondInput.getText().toString().length() != 0);// is removed or is inputed text?
 		         }
-		         else if(thirdInput.isFocused()) {
-		        	 isThirdInput = (thirdInput.getText().toString().length() != 0);
+		         else if(thirdInput.isFocused()) { // if third editText is editted?
+		        	 isThirdInput = (thirdInput.getText().toString().length() != 0);// is removed or is inputed text?
 		         }
 		         
-		         if(isFirstInput && isSecondInput && isThirdInput) {
-		        	 //Send!
-		        	 
-		        	 Thread th1 = new Thread(new Runnable() {
-							
-							@Override
-							public void run() {
-								// TODO Auto-generated method stub
-								String message = null;
-								try {
-									message = URLEncoder.encode(firstInput.getText().toString() + secondInput.getText().toString() + thirdInput.getText().toString(), "utf-8");
-								} catch (UnsupportedEncodingException e1) {
-									// TODO Auto-generated catch block
-									e1.printStackTrace();
-								}
-								
-								HttpGet newSession = new HttpGet(MainActivity.url + "/answer?time=" + time + "&message=" + message);
-								backgroundThreadPause();
-								
-								try {
-									HttpResponse response = MainActivity.httpclient.execute(newSession);
-									InputStream contentStream = response.getEntity().getContent();
-									StringBuffer out = new StringBuffer();
-									byte[] buffer = new byte[4094];
-									int readSize = 0;
-									while ( (readSize = contentStream.read(buffer)) != -1) {
-									    out.append(new String(buffer, 0, readSize));
-									}
-									
-									String ret = out.toString();
-									JSONObject ob = new JSONObject(ret);
-									if(!ob.getString("message").equals("success")) {
-										throw null;
-									}
-									else {
-										MainActivity.this.runOnUiThread(new Runnable() {
-											public void run() {
-												isFirstInput = isSecondInput = isThirdInput = false;
-												
-												firstInput.setText("");
-												secondInput.setText("");
-												thirdInput.setText("");
-											}
-										});
-										if(ob.getBoolean("correct")==  true) {
-											MainActivity.this.runOnUiThread(new Runnable() {
-												public void run() {
-													Toast.makeText(MainActivity.this, "축하합니다! 정답을 맞추셨습니다!", Toast.LENGTH_LONG).show();
-												}
-											});
-										}
-										
-									}
-								}
-								catch(Exception e) {
-									MainActivity.this.runOnUiThread(new Runnable() {
-										public void run() {
-											Toast.makeText(MainActivity.this, "서버와 연결이 끊켰습니다.\n 정답을 업로드 할 수 없습니다.", Toast.LENGTH_LONG).show();
-											//finish();
-										}
-									});
-								}
-								backgroundThreadResume();
-							}
-						});
-						
-						th1.start();
+		         if(isFirstInput && isSecondInput && isThirdInput) { // if all editText is full
+		        	 //Send! to server
+		        	 answerSendThread .start(); // thread call! synchroningly
 		         }
 		    }
 		};
 		
-		firstInput.addTextChangedListener(watcher);
-		secondInput.addTextChangedListener(watcher);
-		thirdInput.addTextChangedListener(watcher);
+		firstInput.addTextChangedListener(watcher); // text watcher work!
+		secondInput.addTextChangedListener(watcher); // text watcher work!
+		thirdInput.addTextChangedListener(watcher); // text watcher work!
 
-		msgSend.setOnClickListener(new OnClickListener() {
-			
+		msgSend.setOnClickListener(new OnClickListener() { // when message send button click!
 			@Override
 			public void onClick(View arg0) {
 				// TODO Auto-generated method stub
-				Thread th22 = new Thread(new Runnable() {
-					
-					@Override
-					public void run() {
-						// TODO Auto-generated method stub
-						String msg = msgText.getText().toString();
-						MainActivity.this.runOnUiThread(new Runnable() {
-							public void run() {
-								msgSend.setEnabled(false);
-								msgSend.setFocusable(false);
-							}
-						});
-						if(msg.length() >= 256) {
-							Toast toast = Toast.makeText(MainActivity.this, "너무 길어요!", Toast.LENGTH_SHORT);
-							toast.show();
-							toast = null;
-						}
-						else if(msg.length() > 0) {
-							HttpGet newSession = null;
-							try {
-								newSession = new HttpGet(MainActivity.url + "/write?time=" + URLEncoder.encode(time + "", "utf-8")+ "&message=" + URLEncoder.encode(msg, "utf-8"));
-							} catch (UnsupportedEncodingException e1) {
-								// TODO Auto-generated catch block
-								e1.printStackTrace();
-							}
-	
-							backgroundThreadPause();
-							
-							try {	
-								HttpResponse response = MainActivity.httpclient.execute(newSession);
-								InputStream contentStream = response.getEntity().getContent();
-								StringBuffer out = new StringBuffer();
-								byte[] buffer = new byte[4094];
-								int readSize = 0;
-								while ( (readSize = contentStream.read(buffer)) != -1) {
-								    out.append(new String(buffer, 0, readSize));
-								}
-								contentStream.close();
-								
-								String ret = out.toString();
-								JSONObject ob = new JSONObject(ret);
-								if(!ob.getString("message").equals("success")) {
-									throw new Exception("Message is fail!");
-								}
-								else {
-									MainActivity.this.runOnUiThread(new Runnable() {
-										public void run() {
-											msgText.setText("");
-										}
-									});
-								}
-								
-							}
-							catch(Exception e) {
-								MainActivity.this.runOnUiThread(new Runnable() {
-									public void run() {
-										MainActivity.this.runOnUiThread(new Runnable() {
-											
-											@Override
-											public void run() {
-												// TODO Auto-generated method stub
-												Toast.makeText(MainActivity.this, "메세지 전송에 실패했습니다.", Toast.LENGTH_SHORT).show();
-											}
-										});
-									}
-								});
-							}
-
-							backgroundThreadResume();
-						}
-						else {
-							MainActivity.this.runOnUiThread(new Runnable() {
-								
-								@Override
-								public void run() {
-									// TODO Auto-generated method stub
-									Toast.makeText(MainActivity.this, "텍스트를 입력해 주세요!", Toast.LENGTH_SHORT).show();
-								}
-							});
-						}
-						
-						MainActivity.this.runOnUiThread(new Runnable() {
-							public void run() {
-								msgSend.setEnabled(true);
-								msgSend.setFocusable(true);
-							}
-						});
-					}
-				});
-					
-				th22.start();
+				messageSendThread.start(); // message send thread
 			}
 		});
-		adapter = new ChatListAdapter(this, android.R.layout.simple_list_item_1, msg);//new ArrayAdapter<ChatMessage>(this, android.R.layout.simple_list_item_1, msg);
-		chatList.setAdapter(adapter);
+		adapter = new ChatListAdapter(this, android.R.layout.simple_list_item_1, msg); // chat list adapter!
+		//new ArrayAdapter<ChatMessage>(this, android.R.layout.simple_list_item_1, msg);
+		chatList.setAdapter(adapter); // set adapter!
 	}
 	
 	private void scrollChatListViewToBottom() {
-	    chatList.post(scrollBottomHandler);
+	    chatList.post(scrollBottomHandler); // scoll to bottom handler act with chat list in main thread 
 	}
+	
+	private void backgroundThreadPause() { // background thread pause
+		synchronized (mPauseLock) { // pause lock synchronized in critical section
+            mPaused = true; // set true to pause 
+            mPauseLock.notifyAll(); // notify it is end of critical section
+        }
+	}
+	private void backgroundThreadResume() { // background thread resume
+		synchronized (mPauseLock) { // pause lock synchronized in critical section 
+            mPaused = false; // set false to resume
+            mPauseLock.notifyAll(); // notify it is end of critical section
+        }
+	}
+	
 	@Override
-	protected void onPause() {
+	protected void onPause() { // when activity is pausing
 		// TODO Auto-generated method stub
 		super.onPause();
-		player.pause();
-		backgroundThreadPause();
-	}
-	
-	private void backgroundThreadPause() {
-		synchronized (mPauseLock) {
-            mPaused = true;
-            mPauseLock.notifyAll();
-        }
-	}
-	private void backgroundThreadResume() {
-		synchronized (mPauseLock) {
-            mPaused = false;
-            mPauseLock.notifyAll();
-        }
+		player.pause(); // background sound pause
+		backgroundThreadPause(); // background thread pause
 	}
 	
 	@Override
-	protected void onResume() {
+	protected void onResume() { // when activity is resuming
 		// TODO Auto-generated method stub
 		super.onResume();
-		player.start();
-		backgroundThreadResume();
+		player.start(); // backgound sound resume
+		backgroundThreadResume(); //background thread resume
 	}
 	
 	@Override
-	protected void onRestart() {
+	protected void onStop() { // when activity is restarting
+		// TODO Auto-generated method stub
+		super.onStop();
+		player.pause(); // background sound pause
+		backgroundThreadPause(); // background thread pause
+	}
+	
+	@Override
+	protected void onRestart() { // when activity is restarting
 		// TODO Auto-generated method stub
 		super.onRestart();
-		player.start();
-		backgroundThreadResume();
+		player.start(); // backgroun sound resume
+		backgroundThreadResume(); // background thread resume
 	}
 	
 	@Override
-	protected void onDestroy() {
+	protected void onDestroy() { // when activity is destroying
 		// TODO Auto-generated method stub
-		player.stop();
-        player.release();
+		player.stop(); // stop player
+        player.release(); // release from memory
 
-		Thread th1 = new Thread(new Runnable() {
+		Thread th1 = new Thread(new Runnable() { // make thread
 			
 			@Override
 			public void run() {
 				// TODO Auto-generated method stub
-				HttpGet newSession = new HttpGet(MainActivity.url + "/new");
+				HttpGet newSession = new HttpGet(MainActivity.url + "/leave"); // notify user close app
 				try {
-					MainActivity.httpclient.execute(newSession);
+					MainActivity.httpclient.execute(newSession); // excute request
 				}
 				catch(Exception e) {}
 			}
 		});
-		th1.start();
+		th1.start(); // start thread
 		
-		super.onDestroy();
-		mFinished = true; // kill thread!
+		super.onDestroy(); // destroy
+		mFinished = true; // kill background thread!
 	}
 	
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data){
 		//super.onActivityResult(requestCode, resultCode, data);
 		if(resultCode == 0) {
-			
-			//Bundle extras = data.getExtras();
-			//time = data.getLongExtra("time", 0);
-			//userName = data.getStringExtra("userName");
-			userName = ChatMessage.me;
-/*
-			ArrayList<ChatMessage> arr = data.getParcelableArrayListExtra("msg");
-			for(int i = 0; i < arr.size(); i++) {
-				msg.add(arr.get(i));
-			}*/
-			
-			//Log.d("Luavis", data.getStringExtra("userName"));
-			MainActivity.this.runOnUiThread(new Runnable() {
+			userName = ChatMessage.me; // set user name
+			backgroundThread = new Thread(new Runnable() { // create background thread
 				
 				@Override
-				public void run() {
-					// TODO Auto-generated method stub
-					adapter.notifyDataSetChanged();
-					scrollChatListViewToBottom();
-				}
-			});
-			
-			backgroundThread = new Thread(new Runnable() {
-				
-				@Override
-				public void run() {
+				public void run() { // run!
 					// TODO Auto-generated method stub
 					while(!mFinished) {
-						synchronized (mPauseLock) {
+						synchronized (mPauseLock) { // critical section
 			                while (mPaused) {
 			                    try {
-			                       mPauseLock.wait(500);
+			                       mPauseLock.wait(500); // wait! and check!
 			                    } catch (InterruptedException e) {
 			                    }
 			                }
 			            }
-						HttpGet newSession = new HttpGet(MainActivity.url + "/readNew?time=" + time);
+						HttpGet newSession = new HttpGet(MainActivity.url + "/readNew?time=" + time); // get server time and new message
 						try {
+							/** 나는 이것을 경이로운 방법으로 설명할 수 있으나, 자습 시간이 충분하지 않아 설명하지 않는다.
+							 *  - 페르마의 마지막정리에서 인용(?)
+							 */
 							HttpResponse response = MainActivity.httpclient.execute(newSession);
 							InputStream contentStream = response.getEntity().getContent();
 							StringBuffer out = new StringBuffer();
@@ -459,7 +456,7 @@ public class MainActivity extends Activity {
 								@Override
 								public void run() {
 									// TODO Auto-generated method stub
-									Toast.makeText(MainActivity.this, "서버 접속에 실패 했습니다.\n 다시 시도해 주세요.", Toast.LENGTH_LONG).show();
+									Toast.makeText(MainActivity.this, "???? ???淡? ???? ?颯??求?.\n ?母? ?천??? ?玲???.", Toast.LENGTH_LONG).show();
 									//finish();
 								}
 							});
